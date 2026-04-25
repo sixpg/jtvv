@@ -1,0 +1,65 @@
+# .github/workflows/update-m3u.yml
+
+name: Auto Update M3U
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"   # every 30 min
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate M3U
+        env:
+          API_URL: ${{ secrets.API_URL }}
+        run: |
+          python <<EOF
+          import os, json, requests
+
+          url = os.environ["API_URL"]
+          r = requests.get(url, timeout=30)
+          data = r.json()
+
+          lines = ['#EXTM3U']
+
+          for ch in data:
+              name = ch.get("channel_name","Unknown")
+              logo = ch.get("channel_logo","")
+              gid  = ch.get("channel_id","")
+              group = ch.get("channel_genre","Live TV")
+              stream = ch.get("channel_url","")
+              kid = ch.get("keyId","")
+              key = ch.get("key","")
+
+              ext = f'#EXTINF:-1 tvg-id="{gid}" tvg-logo="{logo}" group-title="{group}",{name}'
+              lines.append(ext)
+
+              if kid and kid != "null" and key and key != "null":
+                  lines.append(f'#KODIPROP:inputstream.adaptive.license_type=clearkey')
+                  lines.append(f'#KODIPROP:inputstream.adaptive.license_key={kid}:{key}')
+
+              lines.append(stream)
+              lines.append("")
+
+          with open("playlist.m3u", "w", encoding="utf-8") as f:
+              f.write("\n".join(lines))
+          EOF
+
+      - name: Commit Files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add playlist.m3u
+          git commit -m "Auto update playlist" || echo "No changes"
+          git push
