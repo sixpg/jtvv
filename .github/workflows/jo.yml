@@ -5,7 +5,7 @@ name: Auto Update M3U
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/30 * * * *"   # every 30 min
+    - cron: "*/30 * * * *"
 
 jobs:
   build:
@@ -20,6 +20,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install Requests
+        run: pip install requests
+
       - name: Generate M3U
         env:
           API_URL: ${{ secrets.API_URL }}
@@ -28,7 +31,7 @@ jobs:
           import os, json, requests
 
           url = os.environ["API_URL"]
-          r = requests.get(url, timeout=30)
+          r = requests.get(url, timeout=60)
           data = r.json()
 
           lines = ['#EXTM3U']
@@ -36,18 +39,17 @@ jobs:
           for ch in data:
               name = ch.get("channel_name","Unknown")
               logo = ch.get("channel_logo","")
-              gid  = ch.get("channel_id","")
+              gid = ch.get("channel_id","")
               group = ch.get("channel_genre","Live TV")
               stream = ch.get("channel_url","")
               kid = ch.get("keyId","")
               key = ch.get("key","")
 
-              ext = f'#EXTINF:-1 tvg-id="{gid}" tvg-logo="{logo}" group-title="{group}",{name}'
-              lines.append(ext)
+              lines.append(f'#EXTINF:-1 tvg-id="{gid}" tvg-logo="{logo}" group-title="{group}",{name}')
 
-              if kid and kid != "null" and key and key != "null":
-                  lines.append(f'#KODIPROP:inputstream.adaptive.license_type=clearkey')
-                  lines.append(f'#KODIPROP:inputstream.adaptive.license_key={kid}:{key}')
+              if kid not in ["", "null", None] and key not in ["", "null", None]:
+                  lines.append("#KODIPROP:inputstream.adaptive.license_type=clearkey")
+                  lines.append(f"#KODIPROP:inputstream.adaptive.license_key={kid}:{key}")
 
               lines.append(stream)
               lines.append("")
